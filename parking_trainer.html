@@ -151,11 +151,13 @@ body.modal #side,body.carding #side{display:none}
 .stats div{background:rgba(255,255,255,.05);border-radius:10px;padding:7px 9px;font-size:12px;color:var(--mu);font-weight:700}
 .stats b{display:block;color:var(--tx);font-size:16px;font-weight:900}
 .stats .bad b{color:#ff8a80}.stats .ok b{color:#7cf0ac}
-#hMap{display:block;width:100%;height:210px;border-radius:14px;margin:10px 0 6px;background:#2a2d31;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+#hMap{display:block;width:100%;height:240px;border-radius:14px;margin:10px 0 6px;background:#2a2d31;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+.hintTap{font-size:11.5px;color:var(--mu);margin-top:6px;text-align:center}
 .legend{display:flex;gap:12px;justify-content:center;font-size:11px;font-weight:800;color:var(--mu);margin-bottom:6px}
 .legend i{display:inline-block;width:18px;height:6px;border-radius:3px;margin-right:5px;vertical-align:middle}
 .steps{display:flex;flex-direction:column;gap:6px;text-align:left}
-.step{display:flex;align-items:center;gap:9px;background:rgba(255,255,255,.05);border-radius:12px;padding:7px 9px;font-size:13.5px;line-height:1.3}
+.step{display:flex;align-items:center;gap:9px;background:rgba(255,255,255,.05);border-radius:12px;padding:7px 9px;font-size:13.5px;line-height:1.3;cursor:pointer}
+.step.sel{background:rgba(255,122,26,.16);box-shadow:inset 0 0 0 1.5px rgba(255,122,26,.8)}
 .step .nb{flex:0 0 auto;width:26px;height:26px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:14px;color:#0d1a12}
 .step .gc{flex:0 0 auto;min-width:24px;height:24px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;background:#14161a;box-shadow:inset 0 0 0 1.5px currentColor}
 .step svg.wh{flex:0 0 auto;width:26px;height:26px}
@@ -233,7 +235,8 @@ ol.hints li{margin:4px 0}
       <div class="legend" id="hLegend"></div>
       <div class="steps" id="hSteps"></div>
       <details class="tips"><summary id="hTipsT"></summary><ol class="hints" id="hList"></ol><div class="ctl" id="hCtl"></div></details>
-      <div class="row"><button class="btn" id="bPlan"></button><button class="btn pri" id="bDemo"></button></div>
+      <div class="hintTap" id="hTap"></div>
+      <div class="row"><button class="btn" id="bPlan" style="display:none"></button><button class="btn pri" id="bDemo"></button></div>
     </div></div>
     <div class="ov dim" id="ovWin"><div class="card">
       <div class="k" id="wNum"></div>
@@ -2761,7 +2764,7 @@ var STR = {
     wStraight: 'руль прямо', wFull: 'руль до упора', wHalf: 'руль на пол-оборота', sLeft: 'влево', sRight: 'вправо',
     wStraightS: 'прямо', wFullS: 'упор', wHalfS: 'пол-оборота', wBit: 'руль чуть', wBitS: 'чуть',
     finPark: 'Отпустите газ → <b>P</b> → <b>ручник</b>', finZone: 'Отпустите газ — стоп в зоне',
-    howTitle: 'Как проехать',
+    howTitle: 'Как проехать', tapStep: 'Нажмите на шаг — он подсветится на картинке',
     coach: ['Снимите машину с ручника — нажмите на рычаг', 'Включите D — движение вперёд',
             'Нажмите и держите газ — машина поедет', 'Крутите руль влево — заезжайте в жёлтое место',
             'Отпустите газ — машина остановится', 'Включите P — паркинг', 'Поставьте на ручник']
@@ -2791,7 +2794,7 @@ var STR = {
     wStraight: 'wheel straight', wFull: 'full lock', wHalf: 'half a turn', sLeft: 'left', sRight: 'right',
     wStraightS: 'straight', wFullS: 'lock', wHalfS: 'half', wBit: 'steer slightly', wBitS: 'slightly',
     finPark: 'Let go of the gas → <b>P</b> → <b>handbrake</b>', finZone: 'Let go of the gas — stop in the zone',
-    howTitle: 'How to do it',
+    howTitle: 'How to do it', tapStep: 'Tap a step to highlight it on the picture',
     coach: ['Release the handbrake — tap the lever', 'Select D — drive forward',
             'Press and hold the gas — the car moves off', 'Turn the wheel left into the yellow bay',
             'Let go of the gas — the car stops', 'Select P — park', 'Pull the handbrake']
@@ -2817,7 +2820,7 @@ var st = null;   // per-attempt stats
 var cam = { x: 0, y: 0, s: 10, vx: 195, vy: 300, intro: 0, shake: 0, sx: 0, sy: 0, snap: true };
 var guidePts = [], guideHit = -1, guideDir = 0, sens = new Array(8), inTgt = false;
 var fx = { flash: 0, sparks: [], conf: [], hazards: [] };
-var demo = null, coach = null, centerAnim = null, plan = null, planOn = false;
+var demo = null, coach = null, centerAnim = null, plan = null, hintSel = -1;
 
 function resetStats() {
   st = { t: 0, started: false, hits: 0, curbs: 0, moves: 0, lastDir: 0, still: 0,
@@ -2875,8 +2878,7 @@ function loadLevel(i, opt) {
   light = RD.buildLight(lv);
   hideAll();
   plan = buildPlan();
-  planOn = !!plan && (store.plan == null ? idx < 10 : !!store.plan);
-  $('bHint').classList.toggle('act', planOn);
+  hintSel = -1;
   resetAttempt();
   $('tNum').innerHTML = S.lvl.toUpperCase() + ' <b>' + (idx + 1) + '</b> / ' + N;
   $('tName').textContent = lv.name[LANG];
@@ -3171,13 +3173,6 @@ function camUpdate(dt) {
     var tb = G.aabb(G.obb(t.x, t.y, t.l / 2, t.w / 2, t.a));
     var mc = 2.6, mt = 1.0;
     var bx0 = M.min(bb[0] - mc, tb[0] - mt), by0 = M.min(bb[1] - mc, tb[1] - mt), bx1 = M.max(bb[2] + mc, tb[2] + mt), by1 = M.max(bb[3] + mc, tb[3] + mt);
-    if (planOn && plan && (state === 'play' || state === 'demo')) {   // keep the next stop mark of the scheme in view
-      var ps = planStep();
-      if (ps >= 0) {
-        var pe = plan.runs[ps].end, pb = G.aabb(PK.bodyObb(pe.x, pe.y, pe.th));
-        bx0 = M.min(bx0, pb[0] - 0.8); by0 = M.min(by0, pb[1] - 0.8); bx1 = M.max(bx1, pb[2] + 0.8); by1 = M.max(by1, pb[3] + 0.8);
-      }
-    }
     f = camFit(bx0, by0, bx1, by1, sMin, sMax);
   }
   if (cam.snap) { cam.x = f.x; cam.y = f.y; cam.s = f.s; cam.vx = f.vx; cam.vy = f.vy; cam.snap = false; }
@@ -3296,11 +3291,12 @@ function showHints() {
   $('hList').innerHTML = lv.hints[LANG].map(function (h) { return '<li>' + h + '</li>'; }).join('');
   $('hCtl').innerHTML = S.ctl + (matchMedia('(pointer:fine)').matches ? '<br>' + S.keys : '');
   $('hTipsT').textContent = S.tipsT;
+  $('hTap').textContent = plan ? S.tapStep : '';
   $('bDemo').textContent = S.demo;
   $('bDemo').style.display = plan ? '' : 'none';
-  $('bPlan').textContent = planOn ? S.planHide : S.planShow;
-  $('bPlan').style.display = plan ? '' : 'none';
+  $('bPlan').style.display = 'none';
   $('hLegend').innerHTML = '<span><i style="background:#3ddc84"></i>' + S.legF + '</span><span><i style="background:#ffaa3c"></i>' + S.legR + '</span>';
+  hintSel = -1;
   $('hSteps').innerHTML = plan ? stepsHtml() : '';
   $('hMap').style.display = plan ? '' : 'none';
   $('ovHint').classList.add('on'); syncModal();
@@ -3372,67 +3368,46 @@ function stepsHtml() {
   var h = '', n = plan.runs.length;
   for (var k = 0; k < n; k++) {
     var r = plan.runs[k], col = r.dir > 0 ? '#3ddc84' : '#ffaa3c';
-    h += '<div class="step"><span class="nb" style="background:' + col + '">' + (k + 1) + '</span><span class="gc" style="color:' + col + '">' +
+    h += '<div class="step" data-k="' + k + '"><span class="nb" style="background:' + col + '">' + (k + 1) + '</span><span class="gc" style="color:' + col + '">' +
       (r.dir > 0 ? 'D' : 'R') + '</span><span class="tx">' + stepText(k, false) + '</span></div>';
   }
   h += '<div class="step"><span class="nb" style="background:#ffce2e">' + (lv.finish === 'park' ? 'P' : '✓') + '</span><span class="tx">' +
     (lv.finish === 'park' ? S.finPark : S.finZone) + '</span></div>';
   return h;
 }
-function planStep() {
-  if (!plan) return -1;
-  var n = plan.runs.length;
-  if (state === 'demo' && demo) return M.min(demo.r, n - 1);
-  if (state !== 'play') return -1;
-  var k = M.max(0, st.moves - 1), gd = car.gear === 'D' ? 1 : (car.gear === 'R' ? -1 : 0);
-  if (car.v === 0 && st.moves > 0 && k + 1 < n && gd === plan.runs[k + 1].dir) k++;
-  return M.min(k, n - 1);
-}
-function planChip() {
-  var k = planStep(); if (k < 0) return null;
-  var r = plan.runs[k], col = r.dir > 0 ? '#3ddc84' : '#ffaa3c';
-  return { c: 'plan', h: '<span class="nb" style="background:' + col + '">' + (k + 1) + '</span><span class="gc" style="color:' + col + '">' +
-    (r.dir > 0 ? 'D' : 'R') + '</span><span>' + stepText(k, true) + '</span>' };
-}
-function drawMiniMap() {
-  var c = $('hMap'), w = c.clientWidth || 320, h = c.clientHeight || 210, d = M.min(2, window.devicePixelRatio || 1);
-  c.width = M.round(w * d); c.height = M.round(h * d);
-  var ctx = c.getContext('2d'), x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+function drawMiniMap(active) {
+  active = active == null ? -1 : active;
+  var c = $('hMap'), x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
   function add(x, y) { x0 = M.min(x0, x); y0 = M.min(y0, y); x1 = M.max(x1, x); y1 = M.max(y1, y); }
-  plan.runs.forEach(function (r) { r.pts.forEach(function (q) { add(q.x, q.y); }); });
-  G.corners(G.obb(lv.target.x, lv.target.y, lv.target.l / 2, lv.target.w / 2, lv.target.a)).forEach(function (q) { add(q[0], q[1]); });
-  x0 -= 3.2; y0 -= 3.2; x1 += 3.2; y1 += 3.2;
+  function addPose(q) { G.corners(PK.bodyObb(q.x, q.y, q.th, 0)).forEach(function (p) { add(p[0], p[1]); }); }
+  var sp = PK.startPose(lv);
+  if (active < 0) {
+    plan.runs.forEach(function (r) { r.pts.forEach(function (q) { add(q.x, q.y); }); });
+    G.corners(G.obb(lv.target.x, lv.target.y, lv.target.l / 2, lv.target.w / 2, lv.target.a)).forEach(function (q) { add(q[0], q[1]); });
+    addPose(sp);
+  } else {   // zoom into the selected step: from where it starts to where it stops
+    var r = plan.runs[active];
+    r.pts.forEach(function (q) { add(q.x, q.y); });
+    addPose(active === 0 ? sp : plan.runs[active - 1].end);
+    addPose(r.end);
+  }
+  var m = active < 0 ? 3.0 : 2.4;
+  x0 -= m; y0 -= m; x1 += m; y1 += m;
+  // the picture grows taller for tall (street) layouts
+  var w = c.clientWidth || 320, h = G.clamp(M.round(w * (y1 - y0) / (x1 - x0)), 200, 330);
+  c.style.height = h + 'px';
+  var d = M.min(2, window.devicePixelRatio || 1);
+  c.width = M.round(w * d); c.height = M.round(h * d);
+  var ctx = c.getContext('2d');
   var s = M.min(w / (x1 - x0), h / (y1 - y0));
   ctx.setTransform(s * d, 0, 0, s * d, (w / 2 - (x0 + x1) / 2 * s) * d, (h / 2 - (y0 + y1) / 2 * s) * d);
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(layer.c, layer.ox, layer.oy, layer.c.width / layer.ppm, layer.c.height / layer.ppm);
   RD.drawTarget(ctx, lv.target, 0.4, false);
-  RD.drawPlan(ctx, plan, -1, 0, 'under', lv.finish === 'park');
-  var sp = PK.startPose(lv);
+  RD.drawPlan(ctx, plan, active, 0, 'under', lv.finish === 'park');
   RD.drawPlayer(ctx, spr, { x: sp.x, y: sp.y, th: sp.th, steer: 0 }, { brake: false });
-  RD.drawPlan(ctx, plan, -1, 0, 'over', lv.finish === 'park');
+  RD.drawPlan(ctx, plan, active, 0, 'over', lv.finish === 'park');
 }
-function setPlan(on) {
-  planOn = on && !!plan; store.plan = on; save();
-  $('bHint').classList.toggle('act', planOn);
-}
-
-var ICONS = {
-  bayf: '<rect x="3" y="2" width="20" height="9" rx="1"/><path d="M9 2v9M17 2v9M13 18V9M10 12l3-3 3 3"/>',
-  bayr: '<rect x="3" y="2" width="20" height="9" rx="1"/><path d="M9 2v9M17 2v9M13 9v9M10 15l3 3 3-3"/>',
-  bayx: '<rect x="3" y="2" width="20" height="9" rx="1"/><path d="M9 2v9M17 2v9M13 6v6c0 4 3 6 8 6"/>',
-  bayxf: '<rect x="3" y="2" width="20" height="9" rx="1"/><path d="M9 2v9M17 2v9M13 6v6c0 4 3 6 8 6"/>',
-  ang: '<path d="M3 11l5-9M9 11l5-9M15 11l5-9M3 11h18M12 18l3-6"/>',
-  par: '<rect x="2" y="3" width="7" height="5" rx="1"/><rect x="17" y="3" width="7" height="5" rx="1"/><path d="M10 15c2 0 3-7 6-7"/><path d="M2 11h22"/>',
-  parx: '<rect x="2" y="12" width="7" height="5" rx="1"/><rect x="17" y="12" width="7" height="5" rx="1"/><path d="M10 14c3 0 4-8 9-8"/><path d="M2 19h22"/>',
-  garr: '<path d="M4 18V7l9-5 9 5v11"/><path d="M8 18v-7h10v7M13 18v-4"/>',
-  garf: '<path d="M4 18V7l9-5 9 5v11"/><path d="M8 18v-7h10v7M13 11v4"/>',
-  angx: '<path d="M3 11l5-9M9 11l5-9M15 11l5-9M3 11h18"/><path d="M11 6l1 6c1 4 4 6 9 6"/><path d="M18 15l3 3-3 3"/>',
-  garx: '<path d="M4 14V6l9-5 9 5v8"/><path d="M8 14V9h10v5"/><path d="M13 9v8c0 1.5 2 2 7 2"/><path d="M18 17l3 2-3 2"/>',
-  turn: '<path d="M7 19V8a5 5 0 0 1 10 0v11"/><path d="M14 16l3 3 3-3"/>',
-  turnd: '<path d="M7 19V6M7 9h8v4M17 19V6"/><path d="M14 16l3 3 3-3"/>'
-};
-var menuInfo = null;
 function buildMenu() {
   $('mTitle').textContent = S.levels; $('mSub').textContent = S.levelsSub;
   if (!menuInfo) { menuInfo = []; for (var j = 0; j < N; j++) menuInfo.push(PK.levelMeta(j)); }
@@ -3637,7 +3612,7 @@ function update(dt) {
   chip('cTime', fmtT(st.t)); chip('cHits', st.hits + '/3', st.hits > 0); chip('cMoves', S.moves.toLowerCase() + ' ' + st.moves);
   if (toastT > 0) { toastT -= dt; if (toastT <= 0) $('toast').className = ''; }
   coachUpdate(dt);
-  if (!coach || state !== 'play') setStat(statusLine() || (planOn && (state === 'play' || state === 'demo') ? planChip() : null));
+  if (!coach || state !== 'play') setStat(statusLine());
   // effects
   fx.flash = M.max(0, fx.flash - dt * 2.5);
   for (var k = fx.sparks.length - 1; k >= 0; k--) {
@@ -3662,8 +3637,6 @@ function draw() {
   ctx.drawImage(layer.c, layer.ox, layer.oy, layer.c.width / layer.ppm, layer.c.height / layer.ppm);
   for (var i = 0; i < fx.hazards.length; i++) RD.drawHazard(ctx, fx.hazards[i].ob, time);
   RD.drawTarget(ctx, lv.target, time, inTgt);
-  var showPlan = planOn && plan && state !== 'win', pstep = showPlan ? planStep() : -1;
-  if (showPlan) RD.drawPlan(ctx, plan, pstep, time, 'under', lv.finish === 'park');
   if (guidePts.length > 1) RD.drawGuides(ctx, guidePts, guideHit, guideDir, time);
   var bl = car.brake > 0.05 && car.gear !== 'P';
   RD.drawPlayer(ctx, spr, car, { brake: bl });
@@ -3677,7 +3650,6 @@ function draw() {
     ctx.globalAlpha = 0.4; RD.drawPlayer(ctx, spr, car, { brake: bl }); ctx.globalAlpha = 1;
   }
   RD.drawLights(ctx, car, { brake: bl, rev: car.gear === 'R' }, night);
-  if (showPlan) RD.drawPlan(ctx, plan, pstep, time, 'over', lv.finish === 'park');
   if (fx.flash > 0) {
     var b = PK.bodyObb(car.x, car.y, car.th);
     ctx.save(); ctx.translate(b.cx, b.cy); ctx.rotate(b.a);
@@ -3726,7 +3698,17 @@ function init() {
   onTap('bHintX', function () { $('ovHint').classList.remove('on'); syncModal(); });
   onTap('bGo', startPlay);
   onTap('bDemo', startDemo);
-  onTap('bPlan', function () { setPlan(!planOn); $('ovHint').classList.remove('on'); syncModal(); if (state === 'card') startPlay(); });
+  // tapping a step in the hint card highlights it on the picture (tap again: whole scheme)
+  $('hSteps').addEventListener('click', function (e) {
+    var row = e.target.closest ? e.target.closest('.step[data-k]') : null;
+    if (!row || !plan) return;
+    var k = +row.getAttribute('data-k');
+    hintSel = hintSel === k ? -1 : k;
+    var rows = $('hSteps').querySelectorAll('.step');
+    for (var i = 0; i < rows.length; i++) rows[i].classList.toggle('sel', +rows[i].getAttribute('data-k') === hintSel);
+    drawMiniMap(hintSel);
+    AU.play('click');
+  });
   onTap('bFailDemo', startDemo);
   onTap('bDemoStop', function () { stopDemo(); });
   onTap('bAgain', restart);
@@ -3755,7 +3737,7 @@ function init() {
   window.addEventListener('resize', layout);
   window.addEventListener('orientationchange', function () { setTimeout(layout, 120); });
   setGuides(store.guides); setSound(store.sound);
-  if (store.plan === undefined) store.plan = null;
+
   spr = RD.playerSprite(96);
   layout();
   loadLevel(store.last || 0);
